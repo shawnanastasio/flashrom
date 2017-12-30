@@ -179,6 +179,7 @@ static int buspirate_spi_shutdown(void *data)
 	/* Reset Bus Pirate (return to user terminal) */
 	bp_commbuf[0] = 0x0f;
 	ret = buspirate_sendrecv(bp_commbuf, 1, 0);
+	serialport_config(sp_fd, 115200);
 
 out_shutdown:
 	/* Shut down serial port communication */
@@ -368,6 +369,46 @@ int buspirate_spi_init(void)
 		spi_master_buspirate.max_data_read = 12;
 		spi_master_buspirate.max_data_write = 12;
 		spi_master_buspirate.command = buspirate_spi_send_command_v1;
+	}
+
+	/* Increase PIC/FT232 UART speed to 2 Mbaud (instead of 115200 baud) in firmware 5.5 and newer.
+	 * Although this is already possible in firmware 5.2, fast UART in combination with the old SPI
+	 * command set causes hangs for bigger transactions. This is caused by a UART buffer overrun
+	 * in the PIC, and all firmware versions up to (hopefully not including) 6.2 are affected.
+	 */
+	if (BP_FWVERSION(fw_version_major, fw_version_minor) >= BP_FWVERSION(5, 5)) {
+		// FIXME: Do this only for USB-based Bus Pirates... unless you're sure the UART can handle more.
+		int cmdlen;
+		/* Request setting the UART baud rate. */
+		cmdlen = snprintf((char *)bp_commbuf, DEFAULT_BUFSIZE, "b\n");
+		if ((ret = buspirate_sendrecv(bp_commbuf, cmdlen, 0)))
+			return ret;
+		if ((ret = buspirate_wait_for_string(bp_commbuf, ">")))
+			return ret;
+
+		/* Request setting the UART clock divisor manually. */
+		cmdlen = snprintf((char *)bp_commbuf, DEFAULT_BUFSIZE, "10\n");
+		if ((ret = buspirate_sendrecv(bp_commbuf, cmdlen, 0)))
+			return ret;
+		if ((ret = buspirate_wait_for_string(bp_commbuf, ">")))
+			return ret;
+
+		/* Set the UART clock divisor. New clock is 4000000/(divisor1). */
+		cmdlen = snprintf((char *)bp_commbuf, DEFAULT_BUFSIZE, "%i\n", 1);
+		if ((ret = buspirate_sendrecv(bp_commbuf, cmdlen, 0)))
+			return ret;
+		sleep(1);
+		serialport_config(sp_fd, 2000000);
+
+		bp_commbuf[0] = ' ';
+		if ((ret = buspirate_sendrecv(bp_commbuf, 1, 0)))
+			return ret;
+		if ((ret = buspirate_wait_for_string(bp_commbuf, "HiZ>")))
+			return ret;
+		msg_pdbg("Using fast 2 Mbaud for Bus Pirate <-> host communication.\n");
+	} else {
+		msg_pinfo("Bus Pirate firmware 5.4 and older does not support fast Bus Pirate <-> host "  "communication. Limiting UART speed to 115200 Baud.\n");
+		msg_pinfo("It is recommended to upgrade to firmware 6.2 or newer.\n");
 	}
 
 	/* Workaround for broken speed settings in firmware 6.1 and older. */

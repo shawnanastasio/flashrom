@@ -759,8 +759,9 @@ int serialport_write(const unsigned char *buf, unsigned int writecnt);
 int serialport_write_nonblock(const unsigned char *buf, unsigned int writecnt, unsigned int timeout, unsigned int *really_wrote);
 int serialport_read(unsigned char *buf, unsigned int readcnt);
 int serialport_read_nonblock(unsigned char *c, unsigned int readcnt, unsigned int timeout, unsigned int *really_read);
+int serialport_config(fdtype fd, int baud);
 
-/* Serial port/pin mapping:
+	/* Serial port/pin mapping:
 
   1	CD	<-
   2	RXD	<-
@@ -772,17 +773,17 @@ int serialport_read_nonblock(unsigned char *c, unsigned int readcnt, unsigned in
   8	CTS	<-
   9	RI	<-
 */
-enum SP_PIN {
-	PIN_CD = 1,
-	PIN_RXD,
-	PIN_TXD,
-	PIN_DTR,
-	PIN_GND,
-	PIN_DSR,
-	PIN_RTS,
-	PIN_CTS,
-	PIN_RI,
-};
+	enum SP_PIN {
+		PIN_CD = 1,
+		PIN_RXD,
+		PIN_TXD,
+		PIN_DTR,
+		PIN_GND,
+		PIN_DSR,
+		PIN_RTS,
+		PIN_CTS,
+		PIN_RI,
+	};
 
 void sp_set_pin(enum SP_PIN pin, int val);
 int sp_get_pin(enum SP_PIN pin);
